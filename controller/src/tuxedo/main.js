@@ -48,10 +48,18 @@ let mode = 'sim', hwReady = false;
 const hwfx = new HardwareFX(send);   // NeoPixel pumpkin + twitching servo prop
 const overlay = new Overlay();       // death screen + sensor check
 // scares that are YOUR mistake end the run (back to the last checkpoint); scripted ones you live through
-const FATAL = new Set(['caught', 'hand']);
+const FATAL = new Set(['caught']);   // only getting spotted while crouched ends the run; the hand lunge is a scare you survive
 let deadPrevBtn = true;
 const cal = { min: Infinity, max: -Infinity };
-const normalize = (raw) => { cal.min = Math.min(cal.min, raw); cal.max = Math.max(cal.max, raw); return THREE.MathUtils.clamp((raw - cal.min) / Math.max(cal.max - cal.min, 40), 0, 1); };
+const ldr = { room: null };   // the room's normal LDR reading (eyes-switch baseline)
+// Light sensor calibration: track the darkest and brightest readings, but let old extremes slowly fade
+// (~1 min) so one LED flash or one deep cover doesn't stretch the range forever.
+const normalize = (raw) => {
+  if (!Number.isFinite(cal.min)) { cal.min = raw; cal.max = raw; }
+  cal.min = raw < cal.min ? raw : cal.min + (raw - cal.min) * 0.0005;
+  cal.max = raw > cal.max ? raw : cal.max + (raw - cal.max) * 0.0005;
+  return THREE.MathUtils.clamp((raw - cal.min) / Math.max(cal.max - cal.min, 60), 0, 1);
+};
 const NEAR_CM = 10, FAR_CM = 50;
 const cmToNear = (cm) => (!cm ? 0 : THREE.MathUtils.clamp(1 - (cm - NEAR_CM) / (FAR_CM - NEAR_CM), 0, 1));
 
@@ -252,8 +260,8 @@ function continueFromCheckpoint() {
 const CAL_STEPS = [
   { main: 'HOLD YOUR HAND OUT', sub: 'in front of the distance sensor', ok: () => input.near > 0.3 },
   { main: 'TAKE IT AWAY', sub: 'he has to be the only thing out there', ok: () => input.near === 0 },
-  { main: 'COVER THE LIGHT SENSOR', sub: 'that is how you close your eyes', ok: () => input.light < 0.12 },
-  { main: 'UNCOVER IT', sub: 'that is the moon', ok: () => input.light > 0.6 },
+  { main: 'COVER THE LIGHT SENSOR', sub: 'that is how you close your eyes', ok: () => ctrl.eyesClosed || (input.raw != null && ldr.room != null && input.raw < ldr.room * 0.6) },
+  { main: 'UNCOVER IT', sub: 'open your eyes', ok: () => input.raw != null && ldr.room != null && input.raw > ldr.room * 0.75 },
 ];
 let calib = null;
 function startCalibration(t) {
@@ -341,7 +349,9 @@ ui.connect.addEventListener('click', async () => {
     ui.status.textContent = 'Opening port…';
     await connect({
       onData: ({ raw, button, cm }) => {
-        input.light = normalize(raw);
+        // the LDR is now just the eyes switch: the moon stays put, covering the sensor closes your eyes
+        input.raw = raw;
+        input.light = 0.65;
         input.button = button;
         if (cm !== null) { input.cm = cm; input.near = cmToNear(cm); }
       },
@@ -526,7 +536,15 @@ function tick() {
 
   // ── eyes: cover the light sensor completely (or hold E) and you shut them ──
   const walking = story.started && story.phase === 'walk';
-  const covered = ctrl.simEyes || (mode === 'hardware' && input.light < 0.05);
+  // Eyes = a big drop from the room's normal LDR reading. 'room' slowly follows the reading only while uncovered,
+  // so it adapts to the lab's lighting but never learns your hand as normal.
+  // Close below 60% of the room level, reopen above 75% (the gap stops fluttering at the edge).
+  let covered = ctrl.simEyes;
+  if (mode === 'hardware' && input.raw != null) {
+    if (ldr.room == null) ldr.room = input.raw;
+    covered = covered || input.raw < ldr.room * (ctrl.eyesClosed ? 0.75 : 0.6);
+    if (!covered && !ctrl.eyesClosed) ldr.room += (input.raw - ldr.room) * (1 - Math.exp(-dt / 3));
+  }
   ctrl.coverT = covered ? ctrl.coverT + dt : 0;
   const shut = walking && !scare && ctrl.coverT > 0.25;
   if (shut && !ctrl.eyesClosed) {                       // just closed
@@ -550,8 +568,8 @@ function tick() {
     else if (story.scripted === 'armed' && story.flicker <= 0.02 && !ctrl.eyesClosed && !ctrl.hiding) { story.scripted = 'done'; startScare(0, 'act'); }
   }
   // ── hand held right up to the sensor for a moment = he lunges ──
-  handHeld = presence >= 0.9 ? handHeld + dt : 0;
-  if (story.started && story.phase === 'walk' && handHeld > 0.6 && !scare && !lookBack.active && !ctrl.eyesClosed && !ctrl.hiding && t - lastScareAt > 12 && story.s > 0.08) startScare(0.7, 'hand');
+  handHeld = presence >= 0.9 ? handHeld + dt : 0;    // hand held at 90%+ presence (~14 cm or closer to the laser)
+  if (story.started && story.phase === 'walk' && handHeld > 5 && !scare && !lookBack.active && !ctrl.eyesClosed && !ctrl.hiding && t - lastScareAt > 12 && story.s > 0.08) startScare(0.7, 'hand');
 
   // ── scare timeline ──
   let scareDark = 0, scareShake = 0, fovK = 1;

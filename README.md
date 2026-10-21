@@ -2,7 +2,7 @@
 
 **A first-person 80s slasher you play with your hands.** It's Halloween night, 1986. You're walking home through the woods on Hollow Road, toward a rundown house at the end of the trail. Something in a tuxedo is following you.
 
-The Tuxedo Man is a physical-to-web horror piece. An Arduino with real sensors drives a three.js scene in the browser: your **light sensor is the moon**, your **hand near the distance sensor is your hand reaching into the dark**, and **one button** is how you look behind you, kill your flashlight, call out, or crouch. He mostly moves when you look away, so watching him feels safe, until he comes for you anyway. On your desk, a **NeoPixel jack-o'-lantern** glows red as he gets close, and a **servo** twitches every time he moves.
+The Tuxedo Man is a physical-to-web horror piece. An Arduino with real sensors drives a three.js scene in the browser: covering the **light sensor closes your eyes**, your **hand near the distance sensor is your hand reaching into the dark**, and **one button** is how you look behind you, kill your flashlight, call out, or crouch. He mostly moves when you look away, so watching him feels safe, until he comes for you anyway. On your desk, a **NeoPixel jack-o'-lantern** glows red as he gets close, and a **servo** twitches every time he moves.
 
 > No Arduino? The whole game plays in the browser with the keyboard.
 
@@ -48,7 +48,7 @@ You walk the trail toward the house. Four acts, each one a checkpoint:
 | **Space** ×3 | Button ×3 | Call out "Hello?" |
 | **Alt** / **C** (hold) | Button (hold) | Crouch and hold your breath (behind a tree if one is close) |
 | **E** (hold) | Cover the light sensor | Close your eyes (you keep shuffling forward) |
-| Mouse up / down | Light sensor | Moonlight |
+| Mouse up / down | | Moonlight (sim only; on hardware the moon stays fixed) |
 | Scroll | Distance sensor | Your hand reaching toward him |
 | **H** | | Toggle the sensor panel |
 
@@ -126,7 +126,7 @@ There are no audio or texture files to download. Everything except the character
 |---|---|
 | Elegoo Uno R3 (Arduino Uno compatible) | Microcontroller |
 | Half-size breadboard + jumper wires | Wiring |
-| Photoresistor (LDR) + 10 kΩ resistor | Moonlight / eyes (voltage divider) |
+| Photoresistor (LDR) + 10 kΩ resistor | Your eyes: cover it to close them (voltage divider) |
 | Tactile pushbutton | Look back, flashlight, call out, crouch |
 | Sharp GP2Y0D02YK0F IR proximity sensor (digital, ~80 cm) | Your hand, on/off. The analog GP2Y0A21YK0F also works: set `IR_DIGITAL 0` in the firmware |
 | Micro servo (SG90-class "9g") | A prop that twitches when he moves |

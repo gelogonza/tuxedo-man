@@ -1,12 +1,19 @@
 // Physical -> Web controller firmware (Elegoo Uno R3)
 // Protocol (one message per line, 115200 baud):
 //   OUT  "READY"          once, after boot
-//   OUT  "L:<0-1023>,B:<0|1>,D:<cm>"  sensor snapshot ~30x/sec (D:0 = nothing in range)
+//   OUT  "L:<0-1023>,B:<0|1>,D:<cm>"  sensor snapshot ~30x/sec (D = laser distance, Sharp as fallback; 0 = nothing)
 //   IN   "S:<0-180>"      servo angle
 //   IN   "C:<r>,<g>,<b>"  LED color (0-255 each)
 
 #include <Servo.h>
 #include <Adafruit_NeoPixel.h>
+#include <Wire.h>
+#include <VL53L0X.h>                   // Pololu library (Library Manager: "VL53L0X by Pololu")
+
+// VL53L0X laser time-of-flight sensor on I2C: SDA -> A4, SCL -> A5, VCC/GND -> breadboard rails.
+// It measures the real distance to your hand (~3-50 cm in practice); the Sharp is the backup "someone's here".
+VL53L0X tof;
+bool tofOK = false;
 
 const int LDR_PIN = A0, BTN_PIN = 2, SERVO_PIN = 9, LED_PIN = 6;
 const int IR_PIN = A1;                 // Sharp IR sensor (yellow wire)
@@ -50,6 +57,11 @@ void setup() {
   irBaseline = sum / 50;
 #endif
 
+  Wire.begin();
+  tof.setTimeout(50);
+  tofOK = tof.init();                   // not plugged in? the game just runs on the Sharp
+  if (tofOK) { tof.setMeasurementTimingBudget(20000); tof.startContinuous(); }
+
   Serial.println("READY");             // browser waits for this before sending
 }
 
@@ -82,7 +94,7 @@ void loop() {
 // (~3.1 V at 10 cm, ~0.4 V at 80 cm). The curve isn't linear, so we convert
 // with the power-law fit from the datasheet graph. Averaging 5 reads tames noise.
 // Valid range is 10-80 cm; closer than 10 cm the reading folds back (looks farther).
-int readCm() {
+int readSharpCm() {
 #if IR_DIGITAL
   static byte agree = 0; static bool near = false;
   bool now = analogRead(IR_PIN) > irBaseline + 20;   // +20 counts ~ +0.1 V
@@ -95,6 +107,17 @@ int readCm() {
   if (volts < 0.4) return 0;               // nothing within ~80 cm
   int cm = 29.988 * pow(volts, -1.173);
   return constrain(cm, 10, 80);
+}
+
+// What the game gets as D:<cm>. The laser gives the real distance; when it can't see anything
+// (lost the target, dark clothing, or not plugged in) the Sharp decides: someone near -> IR_NEAR_CM, else 0.
+int readCm() {
+  int sharp = readSharpCm();                       // always read it so its 3-sample filter stays current
+  if (tofOK) {
+    uint16_t mm = tof.readRangeContinuousMillimeters();
+    if (!tof.timeoutOccurred() && mm <= 800) return max((int)(mm / 10), 3);
+  }
+  return sharp;
 }
 
 void handle(const char* msg) {
