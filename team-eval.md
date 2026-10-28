@@ -1,0 +1,5 @@
+Our team worked really well together, with each of us taking the lead on different parts of the project. I focused most of my time on the software and coding, along with the game’s creative direction. I developed the original concept and iterated on it with inspiration from slasher films and older PlayStation games. My contributions included the gameplay functions, visual effects, and the b-roll sequence in the main menu, as well as decisions about the game’s atmosphere and overall experience.
+
+Alek focused on the enclosure’s concept, design, and construction. He initially proposed a Slenderman enclosure, but when the 3D print did not work out, we shifted to his coffin concept. Our laser-cut attempt also ran into measurement issues, but we continued working toward a solution. Alek developed the cardboard coffin prototype and refined how the components would be arranged inside it.
+
+Overall, our contributions complemented each other well. I led the digital experience, while Alek led the physical enclosure. Even when fabrication did not go as planned, we stayed flexible and worked together to bring the project into a complete physical prototype.
